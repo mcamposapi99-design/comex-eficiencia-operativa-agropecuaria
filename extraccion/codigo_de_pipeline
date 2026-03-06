@@ -1,0 +1,60 @@
+import pandas_gbq
+
+def pipeline_final_sin_errores():
+   
+    resource_id = "95d066e6-8a0f-4a80-b59d-6f28f88eacd5"
+    base_url = "https://datos.magyp.gob.ar/api/3/action/datastore_search"
+    
+    params = {'resource_id': resource_id, 'limit': 100000}
+
+    try:
+        print(f"Conectando al recurso {resource_id}...")
+        response = requests.get(base_url, params=params, timeout=60)
+        data = response.json()
+        
+        if not data['success']:
+            print("Error en la API.")
+            return
+
+        df = pd.DataFrame(data['result']['records'])
+        
+       
+        col_cultivo = 'cultivo' 
+       
+        
+        print("Filtrando por cultivos de interés...")
+        df['cultivo_lower'] = df[col_cultivo].astype(str).str.lower()
+        keywords = ['soja', 'maiz', 'trigo', 'girasol', 'cebada']
+        
+        df_final = df[df['cultivo_lower'].str.contains('|'.join(keywords), na=False)].copy()
+        df_final = df_final.drop(columns=['cultivo_lower'])
+
+       
+        df_final['campaña_estimada'] = '2024/25'
+
+        print(f"Registros encontrados: {len(df_final)}")
+        print(f"Vista previa de cultivos: {df_final[col_cultivo].unique()[:5]}")
+
+       
+        project_id = "agroexportador-argentina"
+        dataset_id = "exportacion_oleaginosas_cereales_carnes"
+        table_id = f"{dataset_id}.produccion_agricola_2024_2025"
+        ruta_json = "C:/Users/marco/Downloads/agroexportador-argentina-d0b4eaf7b2d1.json" 
+
+        credentials = service_account.Credentials.from_service_account_file(ruta_json)
+
+        print(f"Subiendo a BigQuery...")
+        pandas_gbq.to_gbq(
+            df_final, 
+            table_id, 
+            project_id=project_id, 
+            credentials=credentials, 
+            if_exists='replace'
+        )
+        
+        print(f"--- ¡ÉXITO! Tabla '{table_id}' cargada correctamente ---")
+
+    except Exception as e:
+        print(f"Error fatal: {e}")
+
+pipeline_final_sin_errores()
